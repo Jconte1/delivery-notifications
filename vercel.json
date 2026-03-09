@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/internal/cron/thank-you-send",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/internal/cron/thank-you-sync",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}
