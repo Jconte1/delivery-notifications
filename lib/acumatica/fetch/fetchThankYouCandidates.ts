@@ -1,4 +1,7 @@
+import { queueErpJobRequest, shouldUseQueueErp } from "@/lib/queue/erpClient";
+
 type AnyRow = Record<string, any>;
+type QueueRowsResponse<T> = { rows?: T[] };
 
 export type ThankYouCandidate = {
   orderNbr: string | null;
@@ -40,33 +43,43 @@ function toBool(value: any) {
 }
 
 export async function fetchThankYouCandidates() {
-  const url =
-    process.env.ACUMATICA_THANK_YOU_ODATA_URL ||
-    "https://acumatica.mld.com/OData/MLD/Thank%20You%20Notifications";
-  const username = process.env.ACUMATICA_USERNAME;
-  const password = process.env.ACUMATICA_PASSWORD;
+  let rows: AnyRow[] = [];
+  if (shouldUseQueueErp()) {
+    const resp = await queueErpJobRequest<QueueRowsResponse<AnyRow>>(
+      "/api/erp/jobs/reports/thank-you",
+      {}
+    );
+    rows = Array.isArray(resp?.rows) ? resp.rows : [];
+  } else {
+    const url =
+      process.env.ACUMATICA_THANK_YOU_ODATA_URL ||
+      "https://acumatica.mld.com/OData/MLD/Thank%20You%20Notifications";
+    const username = process.env.ACUMATICA_USERNAME;
+    const password = process.env.ACUMATICA_PASSWORD;
 
-  if (!username || !password) {
-    throw new Error("Missing ACUMATICA_USERNAME or ACUMATICA_PASSWORD env vars");
+    if (!username || !password) {
+      throw new Error("Missing ACUMATICA_USERNAME or ACUMATICA_PASSWORD env vars");
+    }
+
+    const authHeader = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: authHeader,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Thank-you OData fetch failed: ${res.status} ${res.statusText} ${text.slice(0, 500)}`);
+    }
+
+    const json = await res.json().catch(() => ({}));
+    rows = Array.isArray(json) ? json : Array.isArray((json as any)?.value) ? (json as any).value : [];
   }
 
-  const authHeader = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      Authorization: authHeader,
-      Accept: "application/json",
-    },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Thank-you OData fetch failed: ${res.status} ${res.statusText} ${text.slice(0, 500)}`);
-  }
-
-  const json = await res.json().catch(() => ({}));
-  const rows = Array.isArray(json) ? json : Array.isArray((json as any)?.value) ? (json as any).value : [];
   if (!loggedKeys && rows.length) {
     loggedKeys = true;
     console.log("[thank-you] sample fields", Object.keys(rows[0] || {}).slice(0, 50));
