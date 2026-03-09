@@ -10,7 +10,7 @@ import {
 } from "@/lib/notifications/templates/thankYou";
 import { requestInviteCode } from "@/lib/invites/requestInviteCode";
 
-const MIN_TURNIN_DATE = new Date("2026-04-15T00:00:00-06:00");
+const MIN_TURNIN_DATE = new Date("2026-04-01T00:00:00-06:00");
 
 function normalizePhone(value: string | null | undefined) {
   const digits = String(value || "").replace(/\D/g, "");
