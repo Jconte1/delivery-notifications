@@ -856,6 +856,9 @@ model ThankYouNotification {
   lastError            String?
   acumaticaUpdatedAt   DateTime?
   acumaticaUpdateError String?
+  acumaticaUpdateAttempts Int     @default(0)
+  acumaticaLastAttemptAt DateTime?
+  acumaticaLastJobId   String?    @db.VarChar(64)
 }
 
 model JobState {
