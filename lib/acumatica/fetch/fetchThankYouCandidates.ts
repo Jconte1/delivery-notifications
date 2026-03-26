@@ -11,6 +11,7 @@ export type ThankYouCandidate = {
   billingZip: string | null;
   shipVia: string | null;
   turnInDate: Date | null;
+  attributeSiteNumber: string | null;
   attributeSmsTxt: string | null;
   attributeEmailNoty: string | null;
   attributeSmsOptIn: boolean | null;
@@ -98,6 +99,12 @@ export async function fetchThankYouCandidates() {
     ]),
     shipVia: pickField(row, ["ShipVia", "SOOrder_ShipVia", "SOOrder.ShipVia"]),
     turnInDate: toDate(pickField(row, ["TurnInDate", "SOOrder_TurnInDate", "SOOrder.TurnInDate"])),
+    attributeSiteNumber: pickField(row, [
+      "DeliveryContactNumber",
+      "AttributeSITENUMBER",
+      "SOOrder_AttributeSITENUMBER",
+      "SOOrder.AttributeSITENUMBER",
+    ]),
     attributeSmsTxt: pickField(row, [
       "TextNotification",
       "AttributeSMSTXT",

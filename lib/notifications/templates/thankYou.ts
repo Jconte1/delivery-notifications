@@ -111,6 +111,25 @@ export function buildThankYouWillCallSms(orderNbr: string) {
   return `MLD: Thank you for your purchase.${orderLine} Create your Will Call account here: ${link} We will text you with any changes to your order.`;
 }
 
+export function buildThankYouWillCallLoginEmail(orderNbr: string) {
+  const subject = "Thank you for your purchase";
+  const link = willCallLink();
+  const body = renderThankYouTemplate({
+    title: "Thank you for your purchase",
+    preheader: `Order ${orderNbr} has been received.`,
+    messageHtml: `<p>Your order ${orderNbr ? `(${orderNbr})` : ""} has been received.</p><p>Please click below to log in to your Will Call account.</p>`,
+    ctaLabel: "Log In To Will Call",
+    ctaHref: link,
+  });
+  return { subject, body };
+}
+
+export function buildThankYouWillCallLoginSms(orderNbr: string) {
+  const link = willCallLink();
+  const orderLine = orderNbr ? ` Order ${orderNbr}.` : "";
+  return `MLD: Thank you for your purchase.${orderLine} Please log in to your Will Call account here: ${link} We will text you with any changes to your order.`;
+}
+
 export function buildThankYouDeliveryEmail(orderNbr: string) {
   const subject = "Thank you for your purchase";
   const detailsHtml = `

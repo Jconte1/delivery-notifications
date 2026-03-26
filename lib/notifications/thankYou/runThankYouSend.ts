@@ -6,6 +6,8 @@ import {
   buildThankYouDeliveryEmail,
   buildThankYouDeliverySms,
   buildThankYouWillCallEmail,
+  buildThankYouWillCallLoginEmail,
+  buildThankYouWillCallLoginSms,
   buildThankYouWillCallSms,
 } from "@/lib/notifications/templates/thankYou";
 import { requestInviteCode } from "@/lib/invites/requestInviteCode";
@@ -22,13 +24,17 @@ function normalizeEmail(value: string | null | undefined) {
   return email || null;
 }
 
+function resolveSmsPhone(row: { attributeSiteNumber: string | null; attributeSmsTxt: string | null }) {
+  return normalizePhone(row.attributeSiteNumber) || normalizePhone(row.attributeSmsTxt);
+}
+
 function isOpenStatus(status: string | null) {
   return String(status || "").toLowerCase() === "open";
 }
 
 function isWillCallShipVia(value: string | null) {
   const s = String(value || "").toLowerCase().trim();
-  return s.includes("will");
+  return s.includes("will") || s.includes("trans");
 }
 
 function isDeliveryShipVia(value: string | null) {
@@ -92,7 +98,7 @@ export async function runThankYouSend() {
       continue;
     }
 
-    const smsPhone = normalizePhone(row.attributeSmsTxt);
+    const smsPhone = resolveSmsPhone(row);
     const email = normalizeEmail(row.attributeEmailNoty);
     const smsOptIn = row.attributeSmsOptIn === true;
     const emailOptIn = row.attributeEmailOptIn === true;
@@ -166,11 +172,37 @@ export async function runThankYouSend() {
     let emailSkippedForOrder = false;
     let smsErrorForOrder: string | null = null;
     let emailErrorForOrder: string | null = null;
+    let willCallLoginOnly = false;
+    let willCallInviteCode: string | null = null;
+    let invitePrepError: string | null = null;
+
+    if (willCall && emailEligible && email) {
+      try {
+        const inviteDispatch = await requestInviteCode({
+          customerId,
+          billingZip,
+          email,
+        });
+        if (inviteDispatch.kind === "existing-account") {
+          willCallLoginOnly = true;
+        } else {
+          willCallInviteCode = inviteDispatch.code;
+        }
+      } catch (err) {
+        const message = String((err as Error)?.message || err);
+        invitePrepError = message;
+        emailFailed += 1;
+        emailErrorForOrder = message;
+        errors.push(`email:${message}`);
+      }
+    }
 
     if (smsEligible && smsPhone) {
       try {
         const smsBody = willCall
-          ? buildThankYouWillCallSms(row.orderNbr)
+          ? willCallLoginOnly
+            ? buildThankYouWillCallLoginSms(row.orderNbr)
+            : buildThankYouWillCallSms(row.orderNbr)
           : buildThankYouDeliverySms(row.orderNbr);
         const res = await sendSms(smsPhone, smsBody);
         smsOk = res.ok && !res.skipped;
@@ -194,18 +226,21 @@ export async function runThankYouSend() {
 
     if (emailEligible && email) {
       try {
-        if (willCall) {
-          const inviteCode = await requestInviteCode({
-            customerId,
-            billingZip,
-            email,
-          });
-          const { subject, body } = buildThankYouWillCallEmail(
-            row.orderNbr,
-            customerId,
-            billingZip,
-            inviteCode
-          );
+        if (willCall && invitePrepError) {
+          // Invite preflight already failed; keep order-level processing and persist error.
+        } else if (willCall) {
+          if (!willCallLoginOnly && !willCallInviteCode) {
+            throw new Error("Invite code missing");
+          }
+          const message = willCallLoginOnly
+            ? buildThankYouWillCallLoginEmail(row.orderNbr)
+            : buildThankYouWillCallEmail(
+                row.orderNbr,
+                customerId,
+                billingZip,
+                willCallInviteCode as string
+              );
+          const { subject, body } = message;
           const res = await sendEmail(email, subject, body);
           emailOk = res.ok && !res.skipped;
           if (res.skipped) {
@@ -215,7 +250,7 @@ export async function runThankYouSend() {
           if (emailOk) {
             emailSent += 1;
           }
-        } else {
+        } else if (!willCall) {
           const { subject, body } = buildThankYouDeliveryEmail(row.orderNbr);
           const res = await sendEmail(email, subject, body);
           emailOk = res.ok && !res.skipped;
