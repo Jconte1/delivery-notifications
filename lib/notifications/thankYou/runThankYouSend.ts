@@ -12,8 +12,6 @@ import {
 } from "@/lib/notifications/templates/thankYou";
 import { requestInviteCode } from "@/lib/invites/requestInviteCode";
 
-const MIN_TURNIN_DATE = new Date("2026-04-01T00:00:00-06:00");
-
 function normalizePhone(value: string | null | undefined) {
   const digits = String(value || "").replace(/\D/g, "");
   return digits || null;
@@ -126,10 +124,6 @@ export async function runThankYouSend() {
 
     if (!isOpenStatus(row.status)) {
       noteSkip(row.orderNbr, "status-not-open", row.shipVia);
-      continue;
-    }
-    if (!row.turnInDate || row.turnInDate < MIN_TURNIN_DATE) {
-      noteSkip(row.orderNbr, "turnInDate-before-min", row.shipVia);
       continue;
     }
     const willCall = isWillCallShipVia(row.shipVia);
