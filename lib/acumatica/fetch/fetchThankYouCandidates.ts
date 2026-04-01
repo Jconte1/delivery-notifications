@@ -101,15 +101,21 @@ export async function fetchThankYouCandidates() {
     turnInDate: toDate(pickField(row, ["TurnInDate", "SOOrder_TurnInDate", "SOOrder.TurnInDate"])),
     attributeSiteNumber: pickField(row, [
       "DeliveryContactNumber",
+      "DeliveryPhone",
       "AttributeSITENUMBER",
       "SOOrder_AttributeSITENUMBER",
       "SOOrder.AttributeSITENUMBER",
+      "SOOrder_DeliveryPhone",
+      "SOOrder.DeliveryPhone",
     ]),
     attributeSmsTxt: pickField(row, [
       "TextNotification",
       "AttributeSMSTXT",
       "SOOrder_AttributeSMSTXT",
       "SOOrder.AttributeSMSTXT",
+      "DeliveryPhone",
+      "SOOrder_DeliveryPhone",
+      "SOOrder.DeliveryPhone",
     ]),
     attributeEmailNoty: pickField(row, [
       "EmailNotification",
