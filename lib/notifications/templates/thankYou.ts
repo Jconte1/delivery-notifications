@@ -8,6 +8,11 @@ function willCallLink() {
   return `${base}/`;
 }
 
+function willCallRegisterPrefillLink(token: string) {
+  const base = (process.env.FRONTEND_URL || "https://mld-willcall.vercel.app").replace(/\/+$/, "");
+  return `${base}/?register=1&prefillToken=${encodeURIComponent(token)}`;
+}
+
 function renderThankYouTemplate({
   title,
   preheader,
@@ -84,10 +89,11 @@ export function buildThankYouWillCallEmail(
   orderNbr: string,
   customerId: string,
   billingZip: string,
-  inviteCode: string
+  inviteCode: string,
+  prefillToken?: string | null
 ) {
   const subject = "Thank you for your purchase";
-  const link = willCallLink();
+  const link = prefillToken ? willCallRegisterPrefillLink(prefillToken) : willCallLink();
   const detailsHtml = `
     <tr><td style="font-size:13px;color:#6b7280;padding-bottom:6px;">Registration details</td></tr>
     <tr><td style="font-size:14px;color:#374151;">Customer ID#: ${customerId}</td></tr>
@@ -97,7 +103,7 @@ export function buildThankYouWillCallEmail(
   const body = renderThankYouTemplate({
     title: "Thank you for your purchase",
     preheader: `Order ${orderNbr} has been received.`,
-    messageHtml: `<p>Your order ${orderNbr ? `(${orderNbr})` : ""} has been received.</p><p>To create your Will Call account, use the details below.</p>`,
+    messageHtml: `<p>Your order ${orderNbr ? `(${orderNbr})` : ""} has been received.</p><p>To create your Will Call account, use the details below.${prefillToken ? " The link below pre-fills your registration details." : ""}</p>`,
     detailsHtml,
     ctaLabel: "Open Will Call",
     ctaHref: link,
@@ -109,6 +115,12 @@ export function buildThankYouWillCallSms(orderNbr: string) {
   const link = willCallLink();
   const orderLine = orderNbr ? ` Order ${orderNbr}.` : "";
   return `MLD: Thank you for your purchase.${orderLine} Create your Will Call account here: ${link} We will text you with any changes to your order.`;
+}
+
+export function buildThankYouWillCallPrefillSms(orderNbr: string, token: string) {
+  const link = willCallRegisterPrefillLink(token);
+  const orderLine = orderNbr ? ` Order ${orderNbr}.` : "";
+  return `MLD: Thank you for your purchase.${orderLine} Finish your Will Call account setup here: ${link} We will text you with any changes to your order.`;
 }
 
 export function buildThankYouWillCallLoginEmail(orderNbr: string) {

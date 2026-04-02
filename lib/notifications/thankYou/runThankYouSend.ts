@@ -6,11 +6,13 @@ import {
   buildThankYouDeliveryEmail,
   buildThankYouDeliverySms,
   buildThankYouWillCallEmail,
+  buildThankYouWillCallPrefillSms,
   buildThankYouWillCallLoginEmail,
   buildThankYouWillCallLoginSms,
   buildThankYouWillCallSms,
 } from "@/lib/notifications/templates/thankYou";
 import { requestInviteCode } from "@/lib/invites/requestInviteCode";
+import { createRegistrationPrefillToken } from "@/lib/notifications/thankYou/prefillToken";
 
 function normalizePhone(value: string | null | undefined) {
   const digits = String(value || "").replace(/\D/g, "");
@@ -168,6 +170,7 @@ export async function runThankYouSend() {
     let emailErrorForOrder: string | null = null;
     let willCallLoginOnly = false;
     let willCallInviteCode: string | null = null;
+    let registrationPrefillToken: string | null = null;
     let invitePrepError: string | null = null;
 
     if (willCall && emailEligible && email) {
@@ -191,13 +194,39 @@ export async function runThankYouSend() {
       }
     }
 
+    if (willCall && willCallInviteCode && customerId && billingZip) {
+      try {
+        registrationPrefillToken = createRegistrationPrefillToken({
+          customerId,
+          billingZip,
+          inviteCode: willCallInviteCode,
+          email,
+          orderNbr: row.orderNbr,
+        });
+      } catch (tokenErr) {
+        console.error("[thank-you] prefill token issue; using fallback links", {
+          orderNbr: row.orderNbr,
+          error: String((tokenErr as Error)?.message || tokenErr),
+        });
+      }
+    }
+
     if (smsEligible && smsPhone) {
       try {
-        const smsBody = willCall
-          ? willCallLoginOnly
-            ? buildThankYouWillCallLoginSms(row.orderNbr)
-            : buildThankYouWillCallSms(row.orderNbr)
-          : buildThankYouDeliverySms(row.orderNbr);
+        let smsBody: string;
+        if (willCall) {
+          if (willCallLoginOnly) {
+            smsBody = buildThankYouWillCallLoginSms(row.orderNbr);
+          } else if (willCallInviteCode && customerId && billingZip) {
+            smsBody = registrationPrefillToken
+              ? buildThankYouWillCallPrefillSms(row.orderNbr, registrationPrefillToken)
+              : buildThankYouWillCallSms(row.orderNbr);
+          } else {
+            smsBody = buildThankYouWillCallSms(row.orderNbr);
+          }
+        } else {
+          smsBody = buildThankYouDeliverySms(row.orderNbr);
+        }
         const res = await sendSms(smsPhone, smsBody);
         smsOk = res.ok && !res.skipped;
         if (res.skipped) {
@@ -232,7 +261,8 @@ export async function runThankYouSend() {
                 row.orderNbr,
                 customerId,
                 billingZip,
-                willCallInviteCode as string
+                willCallInviteCode as string,
+                registrationPrefillToken
               );
           const { subject, body } = message;
           const res = await sendEmail(email, subject, body);
