@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import crypto from "node:crypto";
 import { fetchThankYouCandidates } from "@/lib/acumatica/fetch/fetchThankYouCandidates";
 import { sendEmail } from "@/lib/notifications/providers/email/sendEmail";
 import { sendSms } from "@/lib/notifications/providers/sms/sendSms";
@@ -45,6 +46,48 @@ function isDeliveryShipVia(value: string | null) {
     s.startsWith("del ") ||
     s.startsWith("del-")
   );
+}
+
+function getPrefillShortLinkBase() {
+  return (
+    process.env.THANK_YOU_SHORT_LINK_BASE_URL ||
+    process.env.DELIVERY_NOTIFICATIONS_URL ||
+    "https://delivery-notifications.vercel.app"
+  ).replace(/\/+$/, "");
+}
+
+function buildPrefillShortCode() {
+  // 8 chars URL-safe code
+  return crypto.randomBytes(6).toString("base64url");
+}
+
+function getPrefillExpiry(now: Date) {
+  const ttlHours = Math.max(1, Number(process.env.WILLCALL_SMS_PREFILL_TTL_HOURS || 24));
+  return new Date(now.getTime() + ttlHours * 60 * 60 * 1000);
+}
+
+async function createSmsPrefillShortLink(orderNbr: string, token: string, now: Date) {
+  const expiresAt = getPrefillExpiry(now);
+
+  for (let i = 0; i < 6; i++) {
+    const code = buildPrefillShortCode();
+    try {
+      await prisma.thankYouNotification.update({
+        where: { orderNbr },
+        data: {
+          smsPrefillCode: code,
+          smsPrefillToken: token,
+          smsPrefillExpiresAt: expiresAt,
+        },
+      });
+      return `${getPrefillShortLinkBase()}/api/public/thank-you-prefill/${encodeURIComponent(code)}`;
+    } catch (err: any) {
+      if (err?.code === "P2002") continue;
+      throw err;
+    }
+  }
+
+  throw new Error("Unable to allocate unique short code");
 }
 
 export async function runThankYouSend() {
@@ -171,6 +214,7 @@ export async function runThankYouSend() {
     let willCallLoginOnly = false;
     let willCallInviteCode: string | null = null;
     let registrationPrefillToken: string | null = null;
+    let registrationPrefillShortLink: string | null = null;
     let invitePrepError: string | null = null;
 
     if (willCall && emailEligible && email) {
@@ -209,6 +253,21 @@ export async function runThankYouSend() {
           error: String((tokenErr as Error)?.message || tokenErr),
         });
       }
+
+      if (registrationPrefillToken) {
+        try {
+          registrationPrefillShortLink = await createSmsPrefillShortLink(
+            row.orderNbr,
+            registrationPrefillToken,
+            now
+          );
+        } catch (shortErr) {
+          console.error("[thank-you] short-link issue; using fallback sms link", {
+            orderNbr: row.orderNbr,
+            error: String((shortErr as Error)?.message || shortErr),
+          });
+        }
+      }
     }
 
     if (smsEligible && smsPhone) {
@@ -218,8 +277,8 @@ export async function runThankYouSend() {
           if (willCallLoginOnly) {
             smsBody = buildThankYouWillCallLoginSms(row.orderNbr);
           } else if (willCallInviteCode && customerId && billingZip) {
-            smsBody = registrationPrefillToken
-              ? buildThankYouWillCallPrefillSms(row.orderNbr, registrationPrefillToken)
+            smsBody = registrationPrefillShortLink
+              ? buildThankYouWillCallPrefillSms(row.orderNbr, registrationPrefillShortLink)
               : buildThankYouWillCallSms(row.orderNbr);
           } else {
             smsBody = buildThankYouWillCallSms(row.orderNbr);
@@ -261,8 +320,7 @@ export async function runThankYouSend() {
                 row.orderNbr,
                 customerId,
                 billingZip,
-                willCallInviteCode as string,
-                registrationPrefillToken
+                willCallInviteCode as string
               );
           const { subject, body } = message;
           const res = await sendEmail(email, subject, body);

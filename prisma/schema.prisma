@@ -859,6 +859,9 @@ model ThankYouNotification {
   acumaticaUpdateAttempts Int     @default(0)
   acumaticaLastAttemptAt DateTime?
   acumaticaLastJobId   String?    @db.VarChar(64)
+  smsPrefillCode       String?    @unique @db.VarChar(32)
+  smsPrefillToken      String?
+  smsPrefillExpiresAt  DateTime?
 }
 
 model JobState {
