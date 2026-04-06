@@ -216,6 +216,13 @@ export async function runThankYouSend() {
     let registrationPrefillToken: string | null = null;
     let registrationPrefillShortLink: string | null = null;
     let invitePrepError: string | null = null;
+    const emailContext = {
+      orderNbr: row.orderNbr,
+      buyerGroup: row.attributeBuyerGroup,
+      orderType: row.orderType,
+      customerName: row.customerName,
+      locationName: row.locationName,
+    };
 
     if (willCall && emailEligible && email) {
       try {
@@ -315,13 +322,11 @@ export async function runThankYouSend() {
             throw new Error("Invite code missing");
           }
           const message = willCallLoginOnly
-            ? buildThankYouWillCallLoginEmail(row.orderNbr)
-            : buildThankYouWillCallEmail(
-                row.orderNbr,
-                customerId,
-                billingZip,
-                willCallInviteCode as string
-              );
+            ? buildThankYouWillCallLoginEmail(emailContext)
+            : buildThankYouWillCallEmail({
+                ...emailContext,
+                prefillToken: registrationPrefillToken,
+              });
           const { subject, body } = message;
           const res = await sendEmail(email, subject, body);
           emailOk = res.ok && !res.skipped;

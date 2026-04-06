@@ -7,6 +7,9 @@ export type ThankYouCandidate = {
   orderNbr: string | null;
   orderType: string | null;
   status: string | null;
+  customerName: string | null;
+  locationName: string | null;
+  attributeBuyerGroup: string | null;
   customerId: string | null;
   billingZip: string | null;
   shipVia: string | null;
@@ -90,6 +93,23 @@ export async function fetchThankYouCandidates() {
     orderNbr: pickField(row, ["OrderNbr", "SOOrder_OrderNbr", "SOOrder.OrderNbr"]),
     orderType: pickField(row, ["OrderType", "SOOrder_OrderType", "SOOrder.OrderType"]),
     status: pickField(row, ["Status", "SOOrder_Status", "SOOrder.Status"]),
+    customerName: pickField(row, [
+      "CustomerName",
+      "CustomerID_Description",
+      "SOOrder_CustomerID_Description",
+      "SOOrder.CustomerID_Description",
+    ]),
+    locationName: pickField(row, [
+      "LocationName",
+      "CustomerLocationID_Description",
+      "SOOrder_CustomerLocationID_Description",
+      "SOOrder.CustomerLocationID_Description",
+    ]),
+    attributeBuyerGroup: pickField(row, [
+      "AttributeBUYERGROUP",
+      "SOOrder_AttributeBUYERGROUP",
+      "SOOrder.AttributeBUYERGROUP",
+    ]),
     customerId: pickField(row, ["CustomerID", "Customer", "SOOrder_CustomerID", "SOOrder.CustomerID"]),
     billingZip: pickField(row, [
       "PostalCode",

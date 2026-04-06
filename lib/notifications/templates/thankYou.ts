@@ -1,4 +1,3 @@
-const BRAND_NAME = "MLD Will Call";
 const BRAND_COLOR = "#111827";
 const ACCENT_COLOR = "#dbaa3c";
 const OUTER_BG = "#f8f2e9";
@@ -11,6 +10,53 @@ function willCallLink() {
 function willCallRegisterPrefillLink(token: string) {
   const base = (process.env.FRONTEND_URL || "https://mld-willcall.vercel.app").replace(/\/+$/, "");
   return `${base}/?register=1&prefillToken=${encodeURIComponent(token)}`;
+}
+
+type ThankYouContext = {
+  orderNbr: string;
+  buyerGroup?: string | null;
+  orderType?: string | null;
+  customerName?: string | null;
+  locationName?: string | null;
+};
+
+function normalizeText(value: string | null | undefined) {
+  return String(value || "").trim();
+}
+
+function normalizedUpper(value: string | null | undefined) {
+  return normalizeText(value).toUpperCase();
+}
+
+function formatOrderGroup(input: ThankYouContext) {
+  const buyerGroup = normalizeText(input.buyerGroup);
+  if (buyerGroup) return buyerGroup;
+  const orderType = normalizedUpper(input.orderType);
+  if (orderType === "PG" || orderType === "PL") return "Plumbing";
+  if (orderType === "HW" || orderType === "HC") return "Hardware";
+  if (orderType === "SO" || orderType === "R1" || orderType === "RP" || orderType === "C1") return "Appliance";
+  return orderType || "Order";
+}
+
+function formatCustomerLocationSegment(locationName?: string | null) {
+  const location = normalizeText(locationName);
+  if (!location) return "";
+  const upper = normalizedUpper(location);
+  if (upper === "MAIN" || upper === "PRIMARY LOCATION") return "";
+  return ` / ${location}`;
+}
+
+function buildWillCallThankYouSubject(input: ThankYouContext) {
+  const group = formatOrderGroup(input);
+  const order = normalizeText(input.orderNbr);
+  const customer = normalizeText(input.customerName) || "Customer";
+  const location = normalizeText(input.locationName);
+  const parts = [group, order, customer];
+  if (location) {
+    const upper = normalizedUpper(location);
+    if (upper !== "MAIN" && upper !== "PRIMARY LOCATION") parts.push(location);
+  }
+  return parts.join(" | ");
 }
 
 function renderThankYouTemplate({
@@ -57,7 +103,6 @@ function renderThankYouTemplate({
                 <div style="margin-bottom:8px;">
                   <img src="${logoUrl}" alt="MLD" style="height:32px;display:block;margin:0 auto;" />
                 </div>
-                <div style="font-size:18px;font-weight:700;color:${BRAND_COLOR};">${BRAND_NAME}</div>
                 <div style="font-size:12px;color:#6b7280;margin-top:4px;">Thank you for your purchase</div>
               </td>
             </tr>
@@ -85,25 +130,17 @@ function renderThankYouTemplate({
 </html>`;
 }
 
-export function buildThankYouWillCallEmail(
-  orderNbr: string,
-  customerId: string,
-  billingZip: string,
-  inviteCode: string
-) {
-  const subject = "Thank you for your purchase";
-  const link = willCallLink();
-  const detailsHtml = `
-    <tr><td style="font-size:13px;color:#6b7280;padding-bottom:6px;">Registration details</td></tr>
-    <tr><td style="font-size:14px;color:#374151;">Customer ID#: ${customerId}</td></tr>
-    <tr><td style="font-size:14px;color:#374151;">Billing ZIP: ${billingZip}</td></tr>
-    <tr><td style="font-size:14px;color:#374151;">Invite Code: <strong>${inviteCode}</strong></td></tr>
-  `;
+export function buildThankYouWillCallEmail(input: ThankYouContext & { prefillToken?: string | null }) {
+  const subject = buildWillCallThankYouSubject(input);
+  const orderLabel = input.orderNbr ? String(input.orderNbr).trim() : "";
+  const orderGroup = formatOrderGroup(input);
+  const customer = normalizeText(input.customerName) || "Customer";
+  const locationSuffix = formatCustomerLocationSegment(input.locationName);
+  const link = input.prefillToken ? willCallRegisterPrefillLink(input.prefillToken) : willCallLink();
   const body = renderThankYouTemplate({
     title: "Thank you for your purchase",
-    preheader: `Order ${orderNbr} has been received.`,
-    messageHtml: `<p>Your order ${orderNbr ? `(${orderNbr})` : ""} has been received.</p><p>To create your Will Call account, use the details below.</p>`,
-    detailsHtml,
+    preheader: `Order ${orderLabel} has been confirmed.`,
+    messageHtml: `<p>Your ${orderGroup} order ${orderLabel} for ${customer}${locationSuffix} has been confirmed and in processing.</p><p>To track product, order status, and schedule pickup, complete registration on the customer dashboard here:</p>`,
     ctaLabel: "Open Will Call",
     ctaHref: link,
   });
@@ -122,13 +159,17 @@ export function buildThankYouWillCallPrefillSms(orderNbr: string, prefillLink: s
   return `MLD: Thank you for your purchase.${orderLine} Finish your Will Call account setup here: ${link} We will text you with any changes to your order.`;
 }
 
-export function buildThankYouWillCallLoginEmail(orderNbr: string) {
-  const subject = "Thank you for your purchase";
+export function buildThankYouWillCallLoginEmail(input: ThankYouContext) {
+  const subject = buildWillCallThankYouSubject(input);
   const link = willCallLink();
+  const orderLabel = input.orderNbr ? String(input.orderNbr).trim() : "";
+  const orderGroup = formatOrderGroup(input);
+  const customer = normalizeText(input.customerName) || "Customer";
+  const locationSuffix = formatCustomerLocationSegment(input.locationName);
   const body = renderThankYouTemplate({
     title: "Thank you for your purchase",
-    preheader: `Order ${orderNbr} has been received.`,
-    messageHtml: `<p>Your order ${orderNbr ? `(${orderNbr})` : ""} has been received.</p><p>Please click below to log in to your Will Call account.</p>`,
+    preheader: `Order ${orderLabel} has been confirmed.`,
+    messageHtml: `<p>Your ${orderGroup} order ${orderLabel} for ${customer}${locationSuffix} has been confirmed and in processing.</p><p>To track product, order status, and schedule pickup, sign in to the customer dashboard here:</p>`,
     ctaLabel: "Log In To Will Call",
     ctaHref: link,
   });
