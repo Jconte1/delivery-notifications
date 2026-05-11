@@ -182,9 +182,11 @@ export function buildThankYouWillCallLoginSms(orderNbr: string) {
   return `MLD: Thank you for your purchase.${orderLine} Please log in to your Will Call account here: ${link} We will text you with any changes to your order.`;
 }
 
-export function buildThankYouDeliveryEmail(orderNbr: string) {
+export function buildThankYouDeliveryEmail(orderNbr: string, deliveryDate?: Date | null) {
   const subject = "Thank you for your purchase";
+  const requestedDate = deliveryDate ? deliveryDate.toLocaleDateString("en-US") : "TBD";
   const detailsHtml = `
+    <tr><td style="font-size:14px;color:#374151;padding-bottom:8px;">Current Requested Delivery Date: ${requestedDate}</td></tr>
     <tr><td style="font-size:13px;color:#6b7280;padding-bottom:6px;">What happens next</td></tr>
     <tr><td style="font-size:14px;color:#374151;">When your order is 6 weeks away from delivery, we will reach out to confirm by text and/or email.</td></tr>
     <tr><td style="font-size:14px;color:#374151;padding-top:8px;">Once you confirm, we will send reminders, order updates, and product ETAs.</td></tr>
@@ -199,7 +201,30 @@ export function buildThankYouDeliveryEmail(orderNbr: string) {
   return { subject, body };
 }
 
-export function buildThankYouDeliverySms(orderNbr: string) {
+export function buildThankYouDeliverySms(orderNbr: string, deliveryDate?: Date | null) {
   const orderLine = orderNbr ? ` Order ${orderNbr}.` : "";
-  return `MLD: Thank you for your purchase.${orderLine} When your order is 6 weeks away from delivery, we will reach out to confirm. We will text you with any changes to your order.`;
+  const requestedDate = deliveryDate ? deliveryDate.toLocaleDateString("en-US") : "TBD";
+  return `MLD: Thank you for your purchase.${orderLine} Current requested delivery date is ${requestedDate}. When your order is 6 weeks away from delivery, we will reach out to confirm. We will text you with any changes to your order.`;
+}
+
+export function buildThankYouDeliveryUnder6WeeksEmail(orderNbr: string) {
+  const subject = "Thank you for your purchase";
+  const detailsHtml = `
+    <tr><td style="font-size:13px;color:#6b7280;padding-bottom:6px;">What happens next</td></tr>
+    <tr><td style="font-size:14px;color:#374151;">Your salesperson will be in touch to confirm delivery date and details.</td></tr>
+  `;
+  const body = renderThankYouTemplate({
+    title: "Thank you for your purchase",
+    preheader: `Order ${orderNbr} has been received.`,
+    messageHtml: `<p>Your order ${orderNbr ? `(${orderNbr})` : ""} has been received.</p>`,
+    detailsHtml,
+    footer: "If you have any questions, please reach out to your salesperson.",
+  });
+  return { subject, body };
+}
+
+export function buildThankYouDeliveryUnder6WeeksSms(orderNbr: string, deliveryDate?: Date | null) {
+  const orderLine = orderNbr ? ` Order ${orderNbr}.` : "";
+  const requestedDate = deliveryDate ? deliveryDate.toLocaleDateString("en-US") : "TBD";
+  return `MLD: Thank you for your purchase.${orderLine} Current requested delivery date is ${requestedDate}. Your salesperson will be in touch to confirm delivery date and details.`;
 }

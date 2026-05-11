@@ -6,6 +6,8 @@ import { sendSms } from "@/lib/notifications/providers/sms/sendSms";
 import {
   buildThankYouDeliveryEmail,
   buildThankYouDeliverySms,
+  buildThankYouDeliveryUnder6WeeksEmail,
+  buildThankYouDeliveryUnder6WeeksSms,
   buildThankYouWillCallEmail,
   buildThankYouWillCallPrefillSms,
   buildThankYouWillCallLoginEmail,
@@ -46,6 +48,25 @@ function isDeliveryShipVia(value: string | null) {
     s.startsWith("del ") ||
     s.startsWith("del-")
   );
+}
+
+function toDateKeyInDenver(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Denver",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function addDaysToDateKey(dateKey: string, days: number) {
+  const [year, month, day] = dateKey.split("-").map((x) => Number(x));
+  const base = new Date(Date.UTC(year, (month || 1) - 1, day || 1));
+  base.setUTCDate(base.getUTCDate() + days);
+  const nextYear = base.getUTCFullYear();
+  const nextMonth = String(base.getUTCMonth() + 1).padStart(2, "0");
+  const nextDay = String(base.getUTCDate()).padStart(2, "0");
+  return `${nextYear}-${nextMonth}-${nextDay}`;
 }
 
 function getPrefillShortLinkBase() {
@@ -150,6 +171,7 @@ export async function runThankYouSend() {
     const upsertBase = {
       orderType: row.orderType ?? null,
       status: row.status ?? null,
+      deliveryDate: row.deliveryDate ?? null,
       customerId: customerId || null,
       billingZip: billingZip || null,
       shipVia: row.shipVia ?? null,
@@ -204,6 +226,19 @@ export async function runThankYouSend() {
 
     attempted += 1;
     const now = new Date();
+    let deliveryUnderSixWeeks = false;
+    if (delivery) {
+      if (row.deliveryDate) {
+        const todayDenver = toDateKeyInDenver(now);
+        const sixWeeksFromNowDenver = addDaysToDateKey(todayDenver, 42);
+        const deliveryDateDenver = toDateKeyInDenver(row.deliveryDate);
+        // Exactly 6 weeks is treated as "over 6 weeks", so under-6-weeks is strictly less-than.
+        deliveryUnderSixWeeks = deliveryDateDenver < sixWeeksFromNowDenver;
+      } else {
+        // Missing/invalid delivery date falls back to current over-6-weeks messaging.
+        deliveryUnderSixWeeks = false;
+      }
+    }
     let smsOk = false;
     let emailOk = false;
     const errors: string[] = [];
@@ -291,7 +326,9 @@ export async function runThankYouSend() {
             smsBody = buildThankYouWillCallSms(row.orderNbr);
           }
         } else {
-          smsBody = buildThankYouDeliverySms(row.orderNbr);
+          smsBody = deliveryUnderSixWeeks
+            ? buildThankYouDeliveryUnder6WeeksSms(row.orderNbr, row.deliveryDate)
+            : buildThankYouDeliverySms(row.orderNbr, row.deliveryDate);
         }
         const res = await sendSms(smsPhone, smsBody);
         smsOk = res.ok && !res.skipped;
@@ -338,7 +375,9 @@ export async function runThankYouSend() {
             emailSent += 1;
           }
         } else if (!willCall) {
-          const { subject, body } = buildThankYouDeliveryEmail(row.orderNbr);
+          const { subject, body } = deliveryUnderSixWeeks
+            ? buildThankYouDeliveryUnder6WeeksEmail(row.orderNbr)
+            : buildThankYouDeliveryEmail(row.orderNbr, row.deliveryDate);
           const res = await sendEmail(email, subject, body);
           emailOk = res.ok && !res.skipped;
           if (res.skipped) {

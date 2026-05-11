@@ -124,8 +124,10 @@ model ErpOrderContact {
   sixWeekFailed   Boolean?        @default(false)
   tenDaySent      Boolean?        @default(false)
   threeDaySent    Boolean?        @default(false)
+  smsOptIn        Boolean         @default(false)
+  emailOptIn      Boolean         @default(false)
   ErpOrderSummary ErpOrderSummary @relation(fields: [orderSummaryId], references: [id], onDelete: Cascade)
-
+  
   @@index([baid, orderNbr])
   @@index([orderSummaryId])
 }
@@ -179,6 +181,7 @@ model ErpOrderSummary {
   updatedAt               DateTime
   baid                    String            @db.VarChar(64)
   orderNbr                String            @db.VarChar(64)
+  orderType               String?           @db.VarChar(16)
   locationId              String?           @db.VarChar(64)
   status                  String            @db.VarChar(48)
   deliveryDate            DateTime?
@@ -841,6 +844,7 @@ model ThankYouNotification {
   orderNbr             String   @unique @db.VarChar(64)
   orderType            String?  @db.VarChar(16)
   status               String?  @db.VarChar(32)
+  deliveryDate         DateTime?
   customerId           String?  @db.VarChar(64)
   billingZip           String?  @db.VarChar(16)
   shipVia              String?  @db.VarChar(128)
@@ -862,6 +866,7 @@ model ThankYouNotification {
   smsPrefillCode       String?    @unique @db.VarChar(32)
   smsPrefillToken      String?
   smsPrefillExpiresAt  DateTime?
+
 }
 
 model JobState {
